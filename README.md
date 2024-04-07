@@ -48,5 +48,3 @@ The LSTM model will be trained on the data collected from the subreddit and will
 
 ### LLM Fine-Tuning
 The BERT model will be fine-tuned on the data collected from the subreddit, we will add a classification layer on top of the BERT model to output a sentiment score for each comment.
-
-
