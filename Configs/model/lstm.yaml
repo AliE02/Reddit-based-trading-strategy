@@ -1,0 +1,32 @@
+model:
+  type: lstm
+  embedding_dim: 100  # Dimension of the word embeddings
+  hidden_dim: 256     # Number of neurons in LSTM layers
+  num_layers: 2       # Number of LSTM layers
+  dropout: 0.5        # Dropout rate applied to the LSTM
+  num_classes: 3      # Number of classes for classification
+  vocab_size: 20000   # Size of the vocabulary
+  bidirectional: true # Whether to use a bidirectional LSTM
+
+training:
+  epoch: 10           # Number of training epochs
+  batch_size: 64      # Batch size for training
+  learning_rate: 0.001 # Learning rate for the optimizer
+  warmup_proportion: 0.1 # Proportion of training to perform linear learning rate warmup
+  checkpoint_dir: "Checkpoints" # Directory to save model checkpoints
+  max_seq_length: 200 # Maximum sequence length for input texts
+
+evaluation:
+  eval_batch_size: 32 # Batch size for evaluation
+
+# The optimizer could be set to something like Adam or SGD, with specific settings:
+optimizer:
+  type: adam
+  lr: 0.001          # Learning rate
+  weight_decay: 0.01 # Weight decay to prevent overfitting
+
+# Optional: Scheduler settings, if using a learning rate scheduler
+scheduler:
+  type: step_lr
+  step_size: 5       # Period of learning rate decay
+  gamma: 0.1         # Multiplicative factor of learning rate decay

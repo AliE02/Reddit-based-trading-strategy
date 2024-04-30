@@ -11,132 +11,147 @@ Config directory contains folders:
 The configs for the BERT variant are stored under bert.yaml in each of the folders.
 make sure to use hydra to initialize the model with the configurations.
 """
-
 import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import DataLoader
-from transformers import BertTokenizer, BertForSequenceClassification
-from sklearn.preprocessing import LabelEncoder
-from sklearn.metrics import accuracy_score
-from sklearn.metrics import f1_score
 from typing import List, Tuple
-from omegaconf import DictConfig
+from transformers import BertTokenizer, BertForSequenceClassification
+from transformers import AdamW, get_linear_schedule_with_warmup
+import numpy as np
+from tqdm import tqdm
+from torch.utils.data import TensorDataset, DataLoader, random_split
 import hydra
-from hydra.core.config_store import ConfigStore
+from datetime import datetime
+import os
 
-from Models.SentimentClassifier import SentimentClassifier
-from Models.TextDataset import TextDataset, collate_batch
+class BERTSent:
+    def __init__(self, config):
+        self.config = config
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model = self.initialize_model()
+        self.tokenizer = self.initialize_tokenizer()
 
-hydra_output = hydra.utils.get_original_cwd() + "/Outputs"
-cs = ConfigStore.instance()
+    def initialize_model(self):
+        model = BertForSequenceClassification.from_pretrained(
+            self.config.model.bert_model,
+            num_labels=self.config.model.num_labels,
+            hidden_dropout_prob=self.config.model.hidden_dropout_prob,
+            attention_probs_dropout_prob=self.config.model.attention_probs_dropout_prob
+        )
+        model.to(self.device)
+        return model
 
-class BERTSent(SentimentClassifier, nn.Module):
-    @hydra.main(config_path="../Config", config_name="bert_config.yaml")
-    def __init__(self, cfg: DictConfig):
-        """
-        Initializes the BERTSent model.
-
-        Args:
-        cfg: DictConfig: The configurations for the model.
-        """
-        super(BERTSent, self).__init__()
-        self.cfg = cfg
-        self.label_encoder = LabelEncoder()
-        self.tokenizer = BertTokenizer.from_pretrained(self.cfg.model.bert_model)
-        self.model = BertForSequenceClassification.from_pretrained(self.cfg.model.bert_model, num_labels=self.cfg.model.num_classes)
-        self.criterion = nn.CrossEntropyLoss()
-        self.optimizer = optim.Adam(self.model.parameters(), lr=self.cfg.optimizer.lr)
-        self.model.to(self.cfg.model.device)
-
-    def train(self, X: List[str], y: List[str]) -> None:
-        """
-        Trains the model on the given data.
-
-        Args:
-        X: List[str]: A list of texts to train on.
-        y: List[str]: A list of labels corresponding to the texts.
-        """
-        self.label_encoder.fit(y)
-        y = self.label_encoder.transform(y)
-        dataset = TextDataset(X, y, self.tokenizer, self.cfg.model.max_length)
-        dataloader = DataLoader(dataset, batch_size=self.cfg.model.batch_size, shuffle=True, collate_fn=collate_batch)
-        self.model.train()
-        for epoch in range(self.cfg.model.epochs):
-            for batch in dataloader:
-                X, y = batch
-                X = X.to(self.cfg.model.device)
-                y = y.to(self.cfg.model.device)
-                self.optimizer.zero_grad()
-                outputs = self.model(X, labels=y)
-                loss = outputs.loss
-                loss.backward()
-                self.optimizer.step()
+    def initialize_tokenizer(self):
+        tokenizer = BertTokenizer.from_pretrained(self.config.model.tokenizer)
+        return tokenizer
 
     def predict(self, X: str) -> str:
-        """
-        Predicts the sentiment of a given text.
-
-        Args:
-        X: str: The text to predict the sentiment of.
-
-        Returns:
-        str: The predicted sentiment of the text.
-        """
         self.model.eval()
+        inputs = self.tokenizer(X, return_tensors="pt", padding=True, truncation=True, max_length=self.config.model.max_seq_length)
+        inputs = {key: value.to(self.device) for key, value in inputs.items()}
         with torch.no_grad():
-            inputs = self.tokenizer(X, return_tensors="pt", max_length=self.cfg.model.max_length, truncation=True, padding=True)
-            inputs = {k: v.to(self.cfg.model.device) for k, v in inputs.items()}
             outputs = self.model(**inputs)
-            logits = outputs.logits
-            predicted_class = torch.argmax(logits, dim=-1).item()
-            return self.label_encoder.inverse_transform([predicted_class])[0]
-        
-    def batch_predict(self, X: List[str]) -> List[str]:
-        """
-        Predicts the sentiment of a batch of texts.
+        prediction = outputs.logits.argmax(-1).item()
+        return prediction
 
-        Args:
-        X: List[str]: A list of texts to predict the sentiment of.
-
-        Returns:
-        List[str]: A list of predicted sentiments of the texts.
-        """
+    def batch_predict(self, X: List[str]) -> List[int]:
         self.model.eval()
         predictions = []
-        with torch.no_grad():
-            for x in X:
-                inputs = self.tokenizer(x, return_tensors="pt", max_length=self.cfg.model.max_length, truncation=True, padding=True)
-                inputs = {k: v.to(self.cfg.model.device) for k, v in inputs.items()}
-                outputs = self.model(**inputs)
-                logits = outputs.logits
-                predicted_class = torch.argmax(logits, dim=-1).item()
-                predictions.append(self.label_encoder.inverse_transform([predicted_class])[0])
+        for text in X:
+            predictions.append(self.predict(text))
         return predictions
-    
-    def evaluate(self, X: List[str], y: List[str]) -> Tuple[float, float]:
-        """
-        Evaluates the model on the given data.
 
-        Args:
-        X: List[str]: A list of texts to evaluate the model on.
-        y: List[str]: A list of labels corresponding to the texts.
+    def train(self, X: List[str], y: List[int], val_ratio=0.1) -> None:
+        # Ensure the checkpoint directory exists
+        checkpoint_dir = self.config.training.checkpoint_dir
+        os.makedirs(checkpoint_dir, exist_ok=True)
 
-        Returns:
-        Tuple[float, float]: A tuple of the accuracy and f1 score of the model.
-        """
+        # Prepare the dataset
+        inputs = self.tokenizer(X, return_tensors="pt", padding=True, truncation=True, max_length=self.config.model.max_seq_length)
+        labels = torch.tensor(y)
+        dataset = TensorDataset(inputs['input_ids'], inputs['attention_mask'], labels)
+        
+        # Split dataset into training and validation sets
+        train_size = int((1 - val_ratio) * len(dataset))
+        val_size = len(dataset) - train_size
+        train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
+
+        train_loader = DataLoader(train_dataset, batch_size=self.config.training.batch_size, shuffle=True)
+        val_loader = DataLoader(val_dataset, batch_size=self.config.training.eval_batch_size, shuffle=False)
+
+        # Optimization setup
+        optimizer = AdamW(self.model.parameters(), lr=self.config.training.learning_rate)
+        total_steps = len(train_loader) * self.config.training.epoch
+        scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=int(total_steps * self.config.training.warmup_proportion), num_training_steps=total_steps)
+
+        # Training loop
+        for epoch in range(self.config.training.epoch):
+            self.model.train()
+            train_loss = 0
+            for batch in tqdm(train_loader, desc=f"Epoch {epoch + 1}/{self.config.training.epoch} Training"):
+                batch = tuple(t.to(self.device) for t in batch)
+                b_input_ids, b_input_mask, b_labels = batch
+                self.model.zero_grad()
+                outputs = self.model(b_input_ids, attention_mask=b_input_mask, labels=b_labels)
+                loss = outputs.loss
+                loss.backward()
+                optimizer.step()
+                scheduler.step()
+                train_loss += loss.item()
+
+            avg_train_loss = train_loss / len(train_loader)
+            print(f"Average Training Loss: {avg_train_loss:.2f}")
+
+            # Validation loop
+            self.model.eval()
+            val_loss, val_accuracy = 0, 0
+            for batch in tqdm(val_loader, desc="Validation"):
+                batch = tuple(t.to(self.device) for t in batch)
+                b_input_ids, b_input_mask, b_labels = batch
+                with torch.no_grad():
+                    outputs = self.model(b_input_ids, attention_mask=b_input_mask, labels=b_labels)
+                    loss = outputs.loss
+                    logits = outputs.logits
+                val_loss += loss.item()
+                preds = torch.argmax(logits, dim=1).flatten()
+                val_accuracy += (preds == b_labels).cpu().numpy().mean()
+
+            avg_val_loss = val_loss / len(val_loader)
+            avg_val_accuracy = val_accuracy / len(val_loader)
+            print(f"Validation Loss: {avg_val_loss:.2f}, Accuracy: {avg_val_accuracy:.2f}")
+
+            # Save checkpoint after each epoch
+            checkpoint_path = os.path.join(checkpoint_dir, f"bert_checkpoint_date_{datetime.now()}_epoch_{epoch+1}.pth")
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': self.model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'loss': avg_train_loss,
+                'validation_loss': avg_val_loss,
+                'validation_accuracy': avg_val_accuracy
+            }, checkpoint_path)
+            print(f"Checkpoint saved to {checkpoint_path}")
+
+
+    def evaluate(self, X: List[str], y: List[int]) -> Tuple[float, float]:
         predictions = self.batch_predict(X)
-        accuracy = accuracy_score(y, predictions)
-        f1 = f1_score(y, predictions, average="weighted")
-        return accuracy, f1
-    
+        accuracy = np.mean([pred == label for pred, label in zip(predictions, y)])
+        return accuracy
+
     def save_model(self, file_path: str) -> None:
-        """
-        Saves the model to a file.
+        self.model.save_pretrained(file_path)
+        self.tokenizer.save_pretrained(file_path)
 
-        Args:
-        file_path: str: The path to save the model to.
-        """
-        torch.save(self.model.state_dict(), file_path)
+    def load_model(self, file_path: str) -> None:
+        self.model = BertForSequenceClassification.from_pretrained(file_path)
+        self.tokenizer = BertTokenizer.from_pretrained(file_path)
+        self.model.to(self.device)
 
-cs.store(name="bert_config", node=BERTSent)
+
+@hydra.main(config_path="Config", config_name="config")
+def main(cfg):
+    bert_classifier = BERTSent(cfg)
+    # Assume dataset is loaded here with `texts` and `labels`
+    # accuracy = bert_classifier.evaluate(texts, labels)
+    # print(f"Model accuracy: {accuracy}")
+
+if __name__ == "__main__":
+    main()

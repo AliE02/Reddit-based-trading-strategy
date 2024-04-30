@@ -1,149 +1,148 @@
-"""
-LSTMSent is a class that inherits from SentimentClassifier
-It is a sentiment classifier that uses an LSTM model to predict the sentiment of a given text.
-This class is implemented using pytorch.
-"""
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader
-from torch.utils.data import Dataset
-from torch.nn.utils.rnn import pad_sequence
-from sklearn.preprocessing import LabelEncoder
-from sklearn.metrics import accuracy_score
-from sklearn.metrics import f1_score
-from typing import List, Tuple
+from torch.utils.data import DataLoader, TensorDataset, random_split
+from typing import List
+from tqdm import tqdm
+from datetime import datetime
+import hydra
+from omegaconf import DictConfig
 
-from Models.SentimentClassifier import SentimentClassifier
-from Models.TextDataset import TextDataset, collate_batch
+# Custom LSTM model
+class LSTMClassifier(nn.Module):
+    def __init__(self, vocab_size, embedding_dim, hidden_dim, num_layers, num_classes, bidirectional, dropout):
+        super(LSTMClassifier, self).__init__()
+        self.embedding = nn.Embedding(vocab_size, embedding_dim)
+        self.lstm = nn.LSTM(embedding_dim, hidden_dim, num_layers, batch_first=True,
+                            dropout=dropout, bidirectional=bidirectional)
+        self.dropout = nn.Dropout(dropout)
+        direction_factor = 2 if bidirectional else 1
+        self.fc = nn.Linear(hidden_dim * direction_factor, num_classes)
 
-class LSTMSent(SentimentClassifier, nn.Module):
-    def __init__(self, embedding_dim: int, hidden_dim: int, num_layers: int, bidirectional: bool, num_classes: int, batch_size: int, device: str):
-        """
-        Initializes the LSTMSent model.
+    def forward(self, text):
+        embedded = self.embedding(text)
+        lstm_out, _ = self.lstm(embedded)
+        # Take the output from the last LSTM cell
+        final_feature_map = self.dropout(lstm_out[:, -1, :])
+        final_out = self.fc(final_feature_map)
+        return final_out
 
-        Args:
-        embedding_dim: int: The dimension of the word embeddings.
-        hidden_dim: int: The dimension of the hidden states of the LSTM.
-        num_layers: int: The number of layers in the LSTM.
-        bidirectional: bool: Whether the LSTM is bidirectional.
-        num_classes: int: The number of classes in the classification task.
-        batch_size: int: The batch size to use during training.
-        device: str: The device to run the model on.
-        """
-        super(LSTMSent, self).__init__()
-        self.embedding_dim = embedding_dim
-        self.hidden_dim = hidden_dim
-        self.num_layers = num_layers
-        self.bidirectional = bidirectional
-        self.num_classes = num_classes
-        self.batch_size = batch_size
-        self.device = device
-        self.label_encoder = LabelEncoder()
-        self.model = nn.LSTM(embedding_dim, hidden_dim, num_layers, bidirectional=bidirectional, batch_first=True)
+class LSTMSent:
+    def __init__(self, config):
+        self.config = config
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model = LSTMClassifier(
+            vocab_size=config.model.vocab_size,
+            embedding_dim=config.model.embedding_dim,
+            hidden_dim=config.model.hidden_dim,
+            num_layers=config.model.num_layers,
+            num_classes=config.model.num_classes,
+            bidirectional=config.model.bidirectional,
+            dropout=config.model.dropout
+        ).to(self.device)
         self.criterion = nn.CrossEntropyLoss()
-        self.optimizer = optim.Adam(self.model.parameters())
-        self.model.to(device)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=config.optimizer.lr, weight_decay=config.optimizer.weight_decay)
 
-    def train(self, X: List[str], y: List[str]) -> None:
-        """
-        Trains the model on the given data.
+    def train(self, X: List[int], y: List[int], val_ratio=0.1):
+        # Prepare dataset
+        X_tensor = torch.tensor(X, dtype=torch.long)
+        y_tensor = torch.tensor(y, dtype=torch.long)
+        dataset = TensorDataset(X_tensor, y_tensor)
+        train_size = int((1 - val_ratio) * len(dataset))
+        val_size = len(dataset) - train_size
+        train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
 
-        Args:
-        X: List[str]: A list of texts to train on.
-        y: List[str]: A list of labels corresponding to the texts.
-        """
-        self.label_encoder.fit(y)
-        y = self.label_encoder.transform(y)
-        dataset = TextDataset(X, y)
-        dataloader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True, collate_fn=collate_batch)
-        self.model.train()
-        for epoch in range(3):
-            for i, (X_batch, y_batch) in enumerate(dataloader):
+        train_loader = DataLoader(train_dataset, batch_size=self.config.training.batch_size, shuffle=True)
+        val_loader = DataLoader(val_dataset, batch_size=self.config.evaluation.eval_batch_size, shuffle=False)
+
+        checkpoint_dir = self.config.training.checkpoint_dir
+
+        # Training loop
+        for epoch in range(self.config.training.epoch):
+            self.model.train()
+            total_loss = 0
+            for inputs, labels in tqdm(train_loader, desc=f"Training Epoch {epoch + 1}"):
+                inputs, labels = inputs.to(self.device), labels.to(self.device)
                 self.optimizer.zero_grad()
-                X_batch = X_batch.to(self.device)
-                y_batch = y_batch.to(self.device)
-                output = self.model(X_batch)
-                loss = self.criterion(output, y_batch)
+                outputs = self.model(inputs)
+                loss = self.criterion(outputs, labels)
                 loss.backward()
                 self.optimizer.step()
+                total_loss += loss.item()
+            
+            print(f"Epoch {epoch + 1}, Average Training Loss: {total_loss / len(train_loader)}")
 
-    def predict(self, X: str) -> str:
-        """
-        Predicts the sentiment of a given text.
+            # Validation
+            self.model.eval()
+            total_eval_loss = 0
+            correct = 0
+            with torch.no_grad():
+                for inputs, labels in tqdm(val_loader, desc="Validating"):
+                    inputs, labels = inputs.to(self.device), labels.to(self.device)
+                    outputs = self.model(inputs)
+                    loss = self.criterion(outputs, labels)
+                    total_eval_loss += loss.item()
+                    preds = outputs.argmax(dim=1)
+                    correct += (preds == labels).sum().item()
+            
+            print(f"Validation Loss: {total_eval_loss / len(val_loader)}, Accuracy: {correct / len(val_dataset)}")
 
-        Args:
-        X: str: The text to predict the sentiment of.
+            # Save checkpoint
+            checkpoint_path = f"{checkpoint_dir}/lstm_checkpoint_date_{datetime.now()}_epoch_{epoch + 1}.pt"
+            torch.save(self.model.state_dict(), checkpoint_path)
 
-        Returns:
-        str: The predicted sentiment of the text.
-        """
+    def predict(self, text):
         self.model.eval()
         with torch.no_grad():
-            X = torch.tensor([X])
-            X = self.vectorize(X)
-            X = X.to(self.device)
-            output = self.model(X)
+            text_tensor = torch.tensor(text).to(self.device)
+            output = self.model(text_tensor)
             _, predicted = torch.max(output, 1)
-            predicted = self.label_encoder.inverse_transform(predicted.cpu().numpy())
-            return predicted[0]
-        
-    def batch_predict(self, X: List[str]) -> List[str]:
-        """
-        Predicts the sentiment of a batch of texts.
+        return predicted.item()
 
-        Args:
-        X: List[str]: A list of texts to predict the sentiment of.
-
-        Returns:
-        List[str]: A list of predicted sentiments of the texts.
-        """
+    def batch_predict(self, texts):
         self.model.eval()
+        predictions = []
         with torch.no_grad():
-            X = [torch.tensor(x) for x in X]
-            X = self.vectorize(X)
-            X = X.to(self.device)
-            output = self.model(X)
-            _, predicted = torch.max(output, 1)
-            predicted = self.label_encoder.inverse_transform(predicted.cpu().numpy())
-            return predicted.tolist()
-        
-    def evaluate(self, X: List[str], y: List[str]) -> Tuple[float, float]:
-        """
-        Evaluates the model on the given data.
+            for text in texts:
+                text_tensor = torch.tensor(text).to(self.device)
+                output = self.model(text_tensor)
+                _, predicted = torch.max(output, 1)
+                predictions.append(predicted.item())
+        return predictions
 
-        Args:
-        X: List[str]: A list of texts to evaluate the model on.
-        y: List[str]: A list of labels corresponding to the texts.
+    def evaluate(self, X, y):
+        self.model.eval()
+        eval_dataset = DataLoader(list(zip(X, y)), batch_size=self.config.evaluation.eval_batch_size)
+        total_accuracy = 0
+        total_loss = 0
+        with torch.no_grad():
+            for inputs, labels in eval_dataset:
+                inputs, labels = inputs.to(self.device), labels.to(self.device)
+                outputs = self.model(inputs)
+                loss = self.criterion(outputs, labels)
+                total_loss += loss.item()
+                _, predicted = torch.max(outputs, 1)
+                total_accuracy += (predicted == labels).sum().item()
+        return total_loss / len(eval_dataset), total_accuracy / len(eval_dataset.dataset)
 
-        Returns:
-        Tuple[float, float]: A tuple of the accuracy and f1 score of the model.
-        """
-        y = self.label_encoder.transform(y)
-        y_pred = self.batch_predict(X)
-        accuracy = accuracy_score(y, y_pred)
-        f1 = f1_score(y, y_pred, average='weighted')
-        return accuracy, f1
+    def save_model(self, file_path):
+        torch.save({
+            'model_state_dict': self.model.state_dict(),
+            'config': self.config
+        }, file_path)
+
+    def load_model(self, file_path):
+        checkpoint = torch.load(file_path)
+        self.model.load_state_dict(checkpoint['model_state_dict'])
+        self.config = checkpoint['config']
+        self.model.to(self.device)
     
-    def save_model(self, file_path: str) -> None:
-        """
-        Saves the model to a file.
 
-        Args:
-        file_path: str: The path to save the model to.
-        """
-        torch.save(self.model.state_dict(), file_path)
+@hydra.main(config_path="Config", config_name="config")
+def main(cfg: DictConfig):
+    lstm_classifier = LSTMSent(cfg)
+    # Assuming X and y are loaded appropriately
+    # lstm_classifier.train(X, y)
 
-    def vectorize(self, X: List[str]) -> torch.Tensor:
-        """
-        Vectorizes a list of texts.
-
-        Args:
-        X: List[str]: A list of texts to vectorize.
-
-        Returns:
-        torch.Tensor: A tensor of the vectorized texts.
-        """
-        X = [torch.tensor(x) for x in X]
-        X = pad_sequence(X, batch_first=True)
-        return X
+if __name__ == "__main__":
+    main()

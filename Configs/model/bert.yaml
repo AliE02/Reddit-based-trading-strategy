@@ -1,0 +1,26 @@
+model:
+  type: bert
+  bert_model: "ahmedrachid/FinancialBERT-Sentiment-Analysis"
+  tokenizer: "ahmedrachid/FinancialBERT-Sentiment-Analysis"
+  num_labels: 3  # Adjust based on your specific use-case (e.g., binary or multi-class classification)
+  max_seq_length: 256  # Maximum length of the input sequences
+  hidden_dropout_prob: 0.1  # Dropout rate in the hidden layers
+  attention_probs_dropout_prob: 0.1  # Dropout rate in the attention probabilities
+  hidden_size: 768  # Size of the hidden layers
+  num_hidden_layers: 12  # Number of hidden layers in the Transformer encoder
+  num_attention_heads: 12  # Number of attention heads in each attention layer
+  intermediate_size: 3072  # The size of the "intermediate" (i.e., feed-forward) layer in the Transformer
+
+training:
+  epoch: 3  # Number of training epochs
+  batch_size: 16  # Batch size for training
+  eval_batch_size: 32  # Batch size for evaluation
+  learning_rate: 2e-5  # Learning rate for the optimizer
+  warmup_proportion: 0.1  # Proportion of training to perform linear learning rate warmup
+  checkpoint_dir: "Checkpoints"  # Directory to save model checkpoints
+  save_steps: 500  # Save checkpoint every X updates steps
+  eval_steps: 100  # Evaluate model on validation set every X steps
+  logging_steps: 50  # Log training information every X steps
+
+evaluation:
+  eval_batch_size: 32  # Batch size for evaluation

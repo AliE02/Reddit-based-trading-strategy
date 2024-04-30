@@ -16,7 +16,7 @@ from typing import List, Tuple
 
 class SentimentClassifier(ABC):
     @abstractmethod
-    def train(self, X: List[str], y: List[str]) -> None:
+    def train(self, X: List[str], y: List[str], val_ratio) -> None:
         """
         Trains the model on the given data.
 

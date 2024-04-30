@@ -1,5 +1,5 @@
 model:
-  type: LSTM  # Set the type of model to use (LSTM or BERT)
+  type: bert  # Set the type of model to use (LSTM or BERT)
 
 training:
   epochs: 10  # Number of training epochs
