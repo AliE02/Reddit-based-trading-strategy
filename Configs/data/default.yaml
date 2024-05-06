@@ -1,0 +1,2 @@
+train_data_path: Data/wsb.json  # Path to the training data file
+test_data_path: Data/wsb.json  # Path to the test data file

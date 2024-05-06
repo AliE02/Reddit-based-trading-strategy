@@ -13,7 +13,7 @@ make sure to use hydra to initialize the model with the configurations.
 """
 import torch
 from typing import List, Tuple
-from transformers import BertTokenizer, BertForSequenceClassification
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from transformers import AdamW, get_linear_schedule_with_warmup
 import numpy as np
 from tqdm import tqdm
@@ -25,27 +25,28 @@ import os
 class BERTSent:
     def __init__(self, config):
         self.config = config
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device("mps")
         self.model = self.initialize_model()
         self.tokenizer = self.initialize_tokenizer()
 
     def initialize_model(self):
-        model = BertForSequenceClassification.from_pretrained(
-            self.config.model.bert_model,
-            num_labels=self.config.model.num_labels,
-            hidden_dropout_prob=self.config.model.hidden_dropout_prob,
-            attention_probs_dropout_prob=self.config.model.attention_probs_dropout_prob
+        model = AutoModelForSequenceClassification.from_pretrained(
+            self.config.bert_model,
+            num_labels=self.config.num_labels,
+            hidden_dropout_prob=self.config.hidden_dropout_prob,
+            attention_probs_dropout_prob=self.config.attention_probs_dropout_prob
         )
         model.to(self.device)
         return model
 
     def initialize_tokenizer(self):
-        tokenizer = BertTokenizer.from_pretrained(self.config.model.tokenizer)
+        tokenizer = AutoTokenizer.from_pretrained(self.config.tokenizer)
         return tokenizer
 
     def predict(self, X: str) -> str:
         self.model.eval()
-        inputs = self.tokenizer(X, return_tensors="pt", padding=True, truncation=True, max_length=self.config.model.max_seq_length)
+        inputs = self.tokenizer(X, return_tensors="pt", padding=True, truncation=True, max_length=self.config.max_seq_length)
         inputs = {key: value.to(self.device) for key, value in inputs.items()}
         with torch.no_grad():
             outputs = self.model(**inputs)
@@ -131,18 +132,20 @@ class BERTSent:
             print(f"Checkpoint saved to {checkpoint_path}")
 
 
-    def evaluate(self, X: List[str], y: List[int]) -> Tuple[float, float]:
+    def evaluate(self, X: List[str], y: List[int]) -> Tuple[float, float, float]:
         predictions = self.batch_predict(X)
         accuracy = np.mean([pred == label for pred, label in zip(predictions, y)])
-        return accuracy
+        f1_score = f1_score(y, predictions, average='weighted')
+        loss = self.compute_loss(X, y)
+        return loss, accuracy, f1_score
 
     def save_model(self, file_path: str) -> None:
         self.model.save_pretrained(file_path)
         self.tokenizer.save_pretrained(file_path)
 
     def load_model(self, file_path: str) -> None:
-        self.model = BertForSequenceClassification.from_pretrained(file_path)
-        self.tokenizer = BertTokenizer.from_pretrained(file_path)
+        self.model = AutoModelForSequenceClassification.from_pretrained(file_path)
+        self.tokenizer = AutoTokenizer.from_pretrained(file_path)
         self.model.to(self.device)
 
 

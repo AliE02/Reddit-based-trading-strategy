@@ -1,2 +1,6 @@
 
 *.env
+*.pyc
+/outputs
+*.json
+Data/wallstreetbets_submissions

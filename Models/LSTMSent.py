@@ -115,6 +115,9 @@ class LSTMSent:
         eval_dataset = DataLoader(list(zip(X, y)), batch_size=self.config.evaluation.eval_batch_size)
         total_accuracy = 0
         total_loss = 0
+        total_tp = 0
+        total_fp = 0
+        total_fn = 0
         with torch.no_grad():
             for inputs, labels in eval_dataset:
                 inputs, labels = inputs.to(self.device), labels.to(self.device)
@@ -123,7 +126,13 @@ class LSTMSent:
                 total_loss += loss.item()
                 _, predicted = torch.max(outputs, 1)
                 total_accuracy += (predicted == labels).sum().item()
-        return total_loss / len(eval_dataset), total_accuracy / len(eval_dataset.dataset)
+                total_tp += ((predicted == 1) & (labels == 1)).sum().item()
+                total_fp += ((predicted == 1) & (labels == 0)).sum().item()
+                total_fn += ((predicted == 0) & (labels == 1)).sum().item()
+        precision = total_tp / (total_tp + total_fp)
+        recall = total_tp / (total_tp + total_fn)
+        f1_score = 2 * (precision * recall) / (precision + recall)
+        return total_loss / len(eval_dataset), total_accuracy / len(eval_dataset.dataset), f1_score
 
     def save_model(self, file_path):
         torch.save({
