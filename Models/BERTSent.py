@@ -55,10 +55,23 @@ class BERTSent:
 
     def batch_predict(self, X: List[str]) -> List[int]:
         self.model.eval()
-        predictions = []
-        for text in X:
-            predictions.append(self.predict(text))
+        # set the data to the device
+        inputs = self.tokenizer(X, return_tensors="pt", padding=True, truncation=True, max_length=self.config.max_seq_length)
+        inputs = {key: value.to(self.device) for key, value in inputs.items()}
+        with torch.no_grad():
+            outputs = self.model(**inputs)
+        predictions = outputs.logits.argmax(-1).cpu().numpy()
+        if self.config.type == "bert_mrm8488" or self.config.type == "bert_cardiff" or self.config.type == "bert_nickmuchi":
+            predictions = [pred - 1 for pred in predictions]
+        elif self.config.type == "bert_ahmedrachid":
+            mapping = {
+                0: -1,
+                1: 1,
+                2: 0
+            }
+            predictions = [mapping[pred] for pred in predictions]
         return predictions
+    
 
     def train(self, X: List[str], y: List[int], val_ratio=0.1) -> None:
         # Ensure the checkpoint directory exists

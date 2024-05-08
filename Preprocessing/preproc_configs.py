@@ -29,12 +29,24 @@ preproc_config_nocontext = [
 
 preproc_config_context = [
     replace_emoticons,
-    replace_unmatched_parentheses,
+    #replace_unmatched_parentheses,
     make_two_consecutive,
-    replace_hashtag,
+    #replace_hashtag,
     remove_punctuation,
-    decontracted,
+    #decontracted,
     string_to_list,
     correct_text,
     list_to_string
 ]
+
+def get_preproc_config(name):
+    if name == 'preproc_config_1':
+        return preproc_config_1
+    elif name == 'preproc_config_2':
+        return preproc_config_2
+    elif name == 'preproc_config_nocontext':
+        return preproc_config_nocontext
+    elif name == 'preproc_config_context':
+        return preproc_config_context
+    else:
+        raise ValueError("Unsupported preprocessing configuration specified.")

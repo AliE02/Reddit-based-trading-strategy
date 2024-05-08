@@ -1,5 +1,5 @@
 from Preprocessing.helper import *
-from Preprocessing.preproc_configs import preproc_config_1
+from Preprocessing.preproc_configs import preproc_config_1, get_preproc_config
 from tqdm import tqdm
 
 import pandas as pd
@@ -8,7 +8,7 @@ tqdm.pandas()
 
 class Preprocessor():
     def __init__(self, process_config, verbose: bool = False):
-        self.process_config = process_config
+        self.process_config = get_preproc_config(process_config)
         self.verbose = verbose
 
     def preprocess_string(self, texts: list) -> list:
@@ -24,7 +24,7 @@ class Preprocessor():
                 print(texts[0])
         return texts
     
-    def preprocess(self, texts: list) -> pd.DataFrame:
+    def preprocess(self, texts: list) -> list:
         """
         preprocesses a dataframe by applying all functions
         specified in the preprocessing configuration

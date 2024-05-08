@@ -18,9 +18,9 @@ def main(cfg: DictConfig):
     texts, labels = load_data(cfg.train_data_path)
 
     # Initialize the model based on configuration
-    if cfg.model.type == 'bert':
+    if cfg.model.typ.startswith('bert'):
         classifier = BERTSent.BERTSent(cfg)
-    elif cfg.model.type == 'lstm':
+    elif cfg.model.type.startswith('lstm'):
         classifier = LSTMSent.LSTMSent(cfg)
     else:
         raise ValueError("Unsupported model type specified in the configuration.")

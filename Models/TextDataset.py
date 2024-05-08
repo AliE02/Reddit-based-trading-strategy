@@ -4,7 +4,7 @@ from torch.utils.data import Dataset, pad_sequence
 
 
 class TextDataset(Dataset):
-    def __init__(self, X: List[str], y: List[int]):
+    def __init__(self, X: List[str], y: List[int]=None):
         """
         Initializes the TextDataset.
 
@@ -19,6 +19,8 @@ class TextDataset(Dataset):
         return len(self.X)
 
     def __getitem__(self, idx):
+        if self.y is None:
+            return self.X[idx]
         return self.X[idx], self.y[idx]
     
 def collate_batch(batch):

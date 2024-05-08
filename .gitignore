@@ -4,3 +4,4 @@
 /outputs
 *.json
 Data/wallstreetbets_submissions
+*.csv
