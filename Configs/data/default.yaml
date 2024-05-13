@@ -1,2 +1,2 @@
 train_data_path: Data/wsb.json  # Path to the training data file
-test_data_path: Data/tweets_labelled_09042020_16072020.csv  # Path to the test data file
+test_data_path: Data/data.csv  # Path to the test data file

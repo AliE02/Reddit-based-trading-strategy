@@ -48,7 +48,8 @@ def load_data(data_path):
         data = json.loads(file.read())
 
     texts = [entry['title'] + ' ' + entry['text'] for entry in data]
-    return texts
+    dates = [entry['date'] for entry in data]
+    return texts, dates
 
 def load_data_bis(data_path):
     """Load data from a file."""
@@ -57,6 +58,15 @@ def load_data_bis(data_path):
     data = data.dropna(subset=['sentiment'])
     texts = data['text'].tolist()
     sentiments = [sentiment_mapping[sentiment] for sentiment in data['sentiment']]
+    return texts, sentiments
+
+def load_data_ter(data_path):
+    """Load data from a file."""
+    data = pd.read_csv("../../../" + data_path, sep=',')
+    # remove rows where sentiment is nan
+    data = data.dropna(subset=['Sentiment'])
+    texts = data['Sentence'].tolist()
+    sentiments = [sentiment_mapping[sentiment] for sentiment in data['Sentiment'].tolist()]
     return texts, sentiments
 
 
@@ -76,7 +86,7 @@ def main(cfg: DictConfig):
     
 
     # Load the data
-    texts, sentiments = load_data_bis(cfg.data.test_data_path)
+    texts, sentiments = load_data_ter(cfg.data.test_data_path)
 
     # Preprocess the data
     texts = preprocessor.preprocess(texts)
@@ -85,15 +95,15 @@ def main(cfg: DictConfig):
     predictions = classifier.batch_predict(texts)
     predictions = [int(pred) for pred in predictions]
 
-    assert len(texts) == len(sentiments) == len(predictions) # Ensure that the number of texts, sentiments and predictions are the same
+    assert len(texts) == len(predictions)  == len(sentiments) # Ensure that the number of texts, sentiments and predictions are the same
 
     results = [
         {
             'text': text,
-            'sentiment': sentiment,
-            'prediction': prediction
+            'prediction': prediction,
+            'sentiment': sentiment
         }
-        for text, sentiment, prediction in zip(texts, sentiments, predictions)
+        for text, prediction, sentiment in zip(texts, predictions, sentiments)
     ]
 
     # accuracy, precision and recall and f1-score for each class (negative, neutral, positive), the macro-average and the weighted average

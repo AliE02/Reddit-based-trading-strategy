@@ -1,6 +1,6 @@
-type: bert_ahmedrachid
-bert_model: "ahmedrachid/FinancialBERT-Sentiment-Analysis"
-tokenizer: "ahmedrachid/FinancialBERT-Sentiment-Analysis"
+type: bert_mrm8488
+bert_model: "mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis"
+tokenizer: "mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis"
 num_labels: 3  # Adjust based on your specific use-case (e.g., binary or multi-class classification)
 max_seq_length: 256  # Maximum length of the input sequences
 hidden_dropout_prob: 0.1  # Dropout rate in the hidden layers

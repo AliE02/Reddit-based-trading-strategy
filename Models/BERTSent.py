@@ -54,22 +54,31 @@ class BERTSent:
         return prediction
 
     def batch_predict(self, X: List[str]) -> List[int]:
-        self.model.eval()
-        # set the data to the device
-        inputs = self.tokenizer(X, return_tensors="pt", padding=True, truncation=True, max_length=self.config.max_seq_length)
-        inputs = {key: value.to(self.device) for key, value in inputs.items()}
-        with torch.no_grad():
-            outputs = self.model(**inputs)
-        predictions = outputs.logits.argmax(-1).cpu().numpy()
-        if self.config.type == "bert_mrm8488" or self.config.type == "bert_cardiff" or self.config.type == "bert_nickmuchi":
-            predictions = [pred - 1 for pred in predictions]
-        elif self.config.type == "bert_ahmedrachid":
-            mapping = {
-                0: -1,
-                1: 1,
-                2: 0
-            }
-            predictions = [mapping[pred] for pred in predictions]
+        self.model.eval()  # Ensure the model is in evaluation mode
+        predictions = []
+
+        # Choose a batch size
+        batch_size = 16  # Adjust based on your GPU/CPU memory availability
+
+        # Process data in batches
+        for i in tqdm(range(0, len(X), batch_size), desc="Predicting"):
+            batch_texts = X[i:i + batch_size]
+            inputs = self.tokenizer(batch_texts, return_tensors="pt", padding=True, truncation=True, max_length=self.config.max_seq_length)
+            inputs = {key: value.to(self.device) for key, value in inputs.items()}
+
+            with torch.no_grad():
+                outputs = self.model(**inputs)
+            logits = outputs.logits.argmax(-1).cpu().numpy()
+
+            # Adjust predictions based on configuration
+            if self.config.type in ["bert_mrm8488", "bert_cardiff", "bert_nickmuchi"]:
+                logits = [pred - 1 for pred in logits]
+            elif self.config.type == "bert_ahmedrachid":
+                mapping = {0: -1, 1: 1, 2: 0}
+                logits = [mapping[pred] for pred in logits]
+
+            predictions.extend(logits)
+
         return predictions
     
 
