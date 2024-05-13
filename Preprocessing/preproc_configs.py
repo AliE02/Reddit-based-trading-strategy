@@ -8,7 +8,7 @@ preproc_config_1 = [
 preproc_config_2 = [
     remove_punctuation,
     remove_stopwords,
-    to_lowercase,
+    #to_lowercase,
     remove_numbers,
     remove_whitespace
 ]
