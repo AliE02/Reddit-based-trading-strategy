@@ -102,6 +102,14 @@ def correct_text(text: list)->list:
     # text = [TextBlob(word).correct().raw for word in text]
     return text
 
+def replace_link(text: str) -> str:
+    """
+    replaces all links in a string with the word link
+    :param text: text to replace links in
+    :return: text with replaced links
+    """
+    return re.sub(r'http\S+', ' link ', text)
+
 
 def remove_punctuation(text: str) -> str:
     """

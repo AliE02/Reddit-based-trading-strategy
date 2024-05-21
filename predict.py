@@ -47,7 +47,8 @@ def load_data(data_path):
     with open("../../../" + data_path, 'r') as file:
         data = json.loads(file.read())
 
-    texts = [entry['title'] + ' ' + entry['text'] for entry in data]
+    #texts = [entry['title'] + ' ' + entry['text'] for entry in data]
+    texts = [entry['text'] for entry in data]
     dates = [entry['date'] for entry in data]
     return texts, dates
 
@@ -86,7 +87,7 @@ def main(cfg: DictConfig):
     
 
     # Load the data
-    texts, sentiments = load_data_ter(cfg.data.test_data_path)
+    texts, dates = load_data(cfg.data.test_data_path)
 
     # Preprocess the data
     texts = preprocessor.preprocess(texts)
@@ -95,24 +96,24 @@ def main(cfg: DictConfig):
     predictions = classifier.batch_predict(texts)
     predictions = [int(pred) for pred in predictions]
 
-    assert len(texts) == len(predictions)  == len(sentiments) # Ensure that the number of texts, sentiments and predictions are the same
+    assert len(texts) == len(predictions) # == len(sentiments) # Ensure that the number of texts, sentiments and predictions are the same
 
     results = [
         {
             'text': text,
             'prediction': prediction,
-            'sentiment': sentiment
+            'date': date
         }
-        for text, prediction, sentiment in zip(texts, predictions, sentiments)
+        for text, prediction, date in zip(texts, predictions, dates)
     ]
 
     # accuracy, precision and recall and f1-score for each class (negative, neutral, positive), the macro-average and the weighted average
-    y_true = np.array(sentiments)
-    y_pred = np.array(predictions)
-    accuracy = accuracy_score(y_true, y_pred)
-    precision, recall, f1_score, _ = precision_recall_fscore_support(y_true, y_pred, average=None)
-    macro_average = precision_recall_fscore_support(y_true, y_pred, average='macro')
-    weighted_average = precision_recall_fscore_support(y_true, y_pred, average='weighted')
+    # y_true = np.array(sentiments)
+    # y_pred = np.array(predictions)
+    # accuracy = accuracy_score(y_true, y_pred)
+    # precision, recall, f1_score, _ = precision_recall_fscore_support(y_true, y_pred, average=None)
+    # macro_average = precision_recall_fscore_support(y_true, y_pred, average='macro')
+    # weighted_average = precision_recall_fscore_support(y_true, y_pred, average='weighted')
 
     # create directory if it does not exist
     if not os.path.exists('Results'):
@@ -122,23 +123,23 @@ def main(cfg: DictConfig):
     # save the predictions in Results folder under the name of the model and the date
     now = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     # write all the metrics in a file in a very well formatted way with labels for each class and metric
-    with open(f'Results/{cfg.model.type}_{now}_metrics.txt', 'w') as file:
-        file.write(f"Accuracy: {accuracy:.4f}\n\n")
+    # with open(f'Results/{cfg.model.type}_{now}_metrics.txt', 'w') as file:
+    #     file.write(f"Accuracy: {accuracy:.4f}\n\n")
         
-        # Writing class-specific metrics with labels
-        for i, (pr, re, f1) in enumerate(zip(precision, recall, f1_score)):
-            file.write(f"Class {i} Precision: {pr:.4f}\n")
-            file.write(f"Class {i} Recall: {re:.4f}\n")
-            file.write(f"Class {i} F1-Score: {f1:.4f}\n\n")
+    #     # Writing class-specific metrics with labels
+    #     for i, (pr, re, f1) in enumerate(zip(precision, recall, f1_score)):
+    #         file.write(f"Class {i} Precision: {pr:.4f}\n")
+    #         file.write(f"Class {i} Recall: {re:.4f}\n")
+    #         file.write(f"Class {i} F1-Score: {f1:.4f}\n\n")
         
-        # Writing macro and weighted averages
-        file.write(f"Macro-Average Precision: {macro_average[0]:.4f}\n")
-        file.write(f"Macro-Average Recall: {macro_average[1]:.4f}\n")
-        file.write(f"Macro-Average F1-Score: {macro_average[2]:.4f}\n\n")
+    #     # Writing macro and weighted averages
+    #     file.write(f"Macro-Average Precision: {macro_average[0]:.4f}\n")
+    #     file.write(f"Macro-Average Recall: {macro_average[1]:.4f}\n")
+    #     file.write(f"Macro-Average F1-Score: {macro_average[2]:.4f}\n\n")
         
-        file.write(f"Weighted-Average Precision: {weighted_average[0]:.4f}\n")
-        file.write(f"Weighted-Average Recall: {weighted_average[1]:.4f}\n")
-        file.write(f"Weighted-Average F1-Score: {weighted_average[2]:.4f}\n")
+    #     file.write(f"Weighted-Average Precision: {weighted_average[0]:.4f}\n")
+    #     file.write(f"Weighted-Average Recall: {weighted_average[1]:.4f}\n")
+    #     file.write(f"Weighted-Average F1-Score: {weighted_average[2]:.4f}\n")
 
 
     with open(f'Results/{cfg.model.type}_{now}_predictions.json', 'w') as file:

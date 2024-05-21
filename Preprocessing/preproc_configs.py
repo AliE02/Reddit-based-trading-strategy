@@ -2,6 +2,7 @@ from Preprocessing.helper import *
 
 
 preproc_config_1 = [
+    replace_link,
     identity
 ]
 

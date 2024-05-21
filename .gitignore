@@ -5,3 +5,7 @@
 *.json
 Data/wallstreetbets_submissions
 *.csv
+Data/raw/Daytrading_submissions
+Data/raw/investing_submissions
+Data/raw/stocks_submissions
+Data/raw/wallstreetbets_submissions
