@@ -1,11 +1,6 @@
 # Reddit-based-trading-strategy
  FIN-407 course project through which we aim to create a trading strategy based on reddit comments' sentiment analysis
 
-
-## Table of Contents
-1. [Introduction](#introduction)
-2. [Data Collection](#data-collection)
-
 ## Introduction
 This project aims at creating a trading strategy based on sentiment analysis of Reddit comments.
 We decided to focus on the stock market and more specifically the AAPL, GOOG, TSLA and AMZN stocks.
