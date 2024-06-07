@@ -19,3 +19,9 @@ The preprocessing has its own directory `Preprocessing`.
 As for the LLM Trading Strategy, the results and prompts can be found in the `prompts` `llm_outputs`
 For the sentiment analysis, the scripts that were used are `predict.py` and `text_split.py` scripts.
 
+## Credits
+This project was implemented by:
+- [Essonni Ali](https://www.linkedin.com/in/ali-essonni-54b2051b1/)
+- [Badri Omar](https://www.linkedin.com/in/omar-badri-21942120a/)
+- [Sefrioui Karim Mhamed](https://www.linkedin.com/in/mhamed-sefrioui-174146264/)
+- [Karime Hamza](https://www.linkedin.com/in/hamza-karime-60095418a/)
