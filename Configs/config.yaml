@@ -1,0 +1,12 @@
+defaults:
+  - _self_
+  - model: bert
+  - preprocessor: default
+  - training: bert
+  - data: default
+
+metrics:
+  - accuracy  # Metric to evaluate the model performance
+  - precision
+  - recall
+  - f1_score
