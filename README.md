@@ -17,3 +17,5 @@ We will then preprocess the data and perform **sentiment analysis** on the comme
 You can find all of the information on the trading strategies in the notebooks section.
 The preprocessing has its own directory `Preprocessing`.
 As for the LLM Trading Strategy, the results and prompts can be found in the `prompts` `llm_outputs`
+For the sentiment analysis, the scripts that were used are `predict.py` and `text_split.py` scripts.
+
