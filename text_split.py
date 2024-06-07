@@ -39,10 +39,6 @@ def process_comment(comment):
 
     if len(comment_dict) == 0:
         return None
-                
-    # if len(comment_dict) == 1:
-    #     # if only one asset is mentioned, return the whole comment
-    #     return {list(comment_dict.keys())[0]: comment}
     
     # if multiple assets are mentioned, return the sentence that mentions each asset
     filtered_dict = {}
