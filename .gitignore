@@ -3,5 +3,5 @@
 *.pyc
 /outputs
 *.json
-Data/wallstreetbets_submissions
+Data/
 *.csv
