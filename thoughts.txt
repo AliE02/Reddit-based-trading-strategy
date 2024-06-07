@@ -1,8 +1,0 @@
-This branch will contain the strategy that is based on expert LLM agents
-Here is the list of tasks to do:
-- Write the different prompts needed for the Experts
-- Get the Data (text + price)
-- Write a notebook that explains everything and runs the strategy
-
-
-Created the notebook
